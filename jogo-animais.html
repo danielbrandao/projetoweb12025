@@ -1,0 +1,435 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jogo de Categorização de Animais</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap');
+        
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: #f0f9ff;
+            overflow-x: hidden;
+        }
+        
+        .draggable {
+            cursor: grab;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .draggable:active {
+            cursor: grabbing;
+            transform: scale(1.05);
+        }
+        
+        .draggable.dragging {
+            opacity: 0.8;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+        }
+        
+        .bucket {
+            transition: transform 0.2s, box-shadow 0.2s;
+            min-height: 200px;
+        }
+        
+        .bucket.drag-over {
+            transform: scale(1.02);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        
+        .feedback {
+            transform: translateY(-20px);
+            opacity: 0;
+            transition: transform 0.5s, opacity 0.5s;
+        }
+        
+        .feedback.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            opacity: 0;
+        }
+        
+        @keyframes float {
+            0% {
+                transform: translateY(0) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-100px) rotate(360deg);
+                opacity: 0;
+            }
+        }
+        
+        .progress-bar {
+            transition: width 0.5s ease;
+        }
+        
+        .animal-card {
+            transform-style: preserve-3d;
+            transition: transform 0.6s;
+        }
+        
+        .animal-card.flip {
+            transform: rotateY(180deg);
+        }
+        
+        .animal-front, .animal-back {
+            backface-visibility: hidden;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .animal-back {
+            transform: rotateY(180deg);
+        }
+    </style>
+</head>
+<body>
+    <div class="min-h-screen flex flex-col">
+        <!-- Cabeçalho -->
+        <header class="bg-gradient-to-r from-blue-500 to-teal-400 text-white p-4 shadow-lg">
+            <div class="container mx-auto flex flex-col md:flex-row justify-between items-center">
+                <h1 class="text-3xl font-bold mb-2 md:mb-0">Classificação de Animais</h1>
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center">
+                        <span class="mr-2 font-semibold">Progresso:</span>
+                        <div class="w-48 h-4 bg-blue-200 rounded-full overflow-hidden">
+                            <div id="progress-bar" class="progress-bar h-full bg-green-500 rounded-full" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="mr-2 font-semibold">Pontuação:</span>
+                        <span id="score" class="text-xl font-bold">0</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Conteúdo principal -->
+        <main class="flex-grow container mx-auto p-4">
+            <!-- Instruções -->
+            <div class="bg-white rounded-lg p-6 shadow-md mb-8">
+                <h2 class="text-2xl font-bold text-blue-600 mb-2">Como Jogar</h2>
+                <p class="text-gray-700">Arraste cada animal para o balde correto de acordo com sua classificação: Mamíferos, Répteis ou Anfíbios. Receba pontos por cada classificação correta!</p>
+            </div>
+
+            <!-- Área de jogo -->
+            <div class="flex flex-col md:flex-row gap-8">
+                <!-- Animais para arrastar -->
+                <div class="md:w-1/3">
+                    <h2 class="text-xl font-bold text-blue-600 mb-4">Animais</h2>
+                    <div id="animals-container" class="grid grid-cols-2 gap-4">
+                        <!-- Os animais serão inseridos aqui via JavaScript -->
+                    </div>
+                </div>
+
+                <!-- Baldes para categorização -->
+                <div class="md:w-2/3">
+                    <h2 class="text-xl font-bold text-blue-600 mb-4">Categorias</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <!-- Balde de Mamíferos -->
+                        <div class="bucket bg-red-100 rounded-lg p-4 border-2 border-red-300 shadow-md" data-category="mamifero">
+                            <h3 class="text-lg font-bold text-red-600 text-center mb-2">Mamíferos</h3>
+                            <div class="bucket-content min-h-[150px] flex flex-wrap gap-2 justify-center">
+                                <!-- Animais classificados aparecerão aqui -->
+                            </div>
+                        </div>
+
+                        <!-- Balde de Répteis -->
+                        <div class="bucket bg-green-100 rounded-lg p-4 border-2 border-green-300 shadow-md" data-category="reptil">
+                            <h3 class="text-lg font-bold text-green-600 text-center mb-2">Répteis</h3>
+                            <div class="bucket-content min-h-[150px] flex flex-wrap gap-2 justify-center">
+                                <!-- Animais classificados aparecerão aqui -->
+                            </div>
+                        </div>
+
+                        <!-- Balde de Anfíbios -->
+                        <div class="bucket bg-blue-100 rounded-lg p-4 border-2 border-blue-300 shadow-md" data-category="anfibio">
+                            <h3 class="text-lg font-bold text-blue-600 text-center mb-2">Anfíbios</h3>
+                            <div class="bucket-content min-h-[150px] flex flex-wrap gap-2 justify-center">
+                                <!-- Animais classificados aparecerão aqui -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Feedback -->
+            <div id="feedback" class="feedback fixed top-10 left-1/2 transform -translate-x-1/2 bg-white py-3 px-6 rounded-full shadow-lg">
+                <span id="feedback-text" class="text-lg font-bold"></span>
+            </div>
+        </main>
+
+        <!-- Modal de conclusão -->
+        <div id="completion-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+            <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl">
+                <h2 class="text-3xl font-bold text-center text-blue-600 mb-4">Parabéns!</h2>
+                <p class="text-xl text-center mb-6">Você completou o jogo de classificação de animais!</p>
+                <div class="text-center mb-6">
+                    <p class="text-lg">Pontuação final: <span id="final-score" class="font-bold text-2xl text-green-600">0</span></p>
+                </div>
+                <div class="flex justify-center">
+                    <button id="restart-button" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors">
+                        Jogar Novamente
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Dados dos animais
+            const animals = [
+                { id: 1, name: "Cachorro", category: "mamifero", emoji: "🐕" },
+                { id: 2, name: "Gato", category: "mamifero", emoji: "🐈" },
+                { id: 3, name: "Cobra", category: "reptil", emoji: "🐍" },
+                { id: 4, name: "Lagarto", category: "reptil", emoji: "🦎" },
+                { id: 5, name: "Sapo", category: "anfibio", emoji: "🐸" },
+                { id: 6, name: "Salamandra", category: "anfibio", emoji: "🦎" },
+                { id: 7, name: "Elefante", category: "mamifero", emoji: "🐘" },
+                { id: 8, name: "Tartaruga", category: "reptil", emoji: "🐢" },
+                { id: 9, name: "Peixe-boi", category: "mamifero", emoji: "🐄" },
+                { id: 10, name: "Rã", category: "anfibio", emoji: "🐸" },
+                { id: 11, name: "Crocodilo", category: "reptil", emoji: "🐊" },
+                { id: 12, name: "Baleia", category: "mamifero", emoji: "🐋" }
+            ];
+
+            // Elementos do DOM
+            const animalsContainer = document.getElementById('animals-container');
+            const buckets = document.querySelectorAll('.bucket');
+            const progressBar = document.getElementById('progress-bar');
+            const scoreElement = document.getElementById('score');
+            const feedbackElement = document.getElementById('feedback');
+            const feedbackText = document.getElementById('feedback-text');
+            const completionModal = document.getElementById('completion-modal');
+            const finalScoreElement = document.getElementById('final-score');
+            const restartButton = document.getElementById('restart-button');
+
+            // Variáveis do jogo
+            let score = 0;
+            let correctAnswers = 0;
+            let totalAnimals = animals.length;
+            let currentAnimals = [...animals];
+            
+            // Embaralhar os animais
+            shuffleArray(currentAnimals);
+
+            // Inicializar o jogo
+            initGame();
+
+            // Função para inicializar o jogo
+            function initGame() {
+                // Limpar o container de animais
+                animalsContainer.innerHTML = '';
+                
+                // Criar os cards de animais
+                currentAnimals.forEach(animal => {
+                    const animalCard = createAnimalCard(animal);
+                    animalsContainer.appendChild(animalCard);
+                });
+
+                // Adicionar eventos de drag and drop
+                setupDragAndDrop();
+                
+                // Resetar pontuação e progresso
+                score = 0;
+                correctAnswers = 0;
+                updateScore();
+                updateProgressBar();
+                
+                // Limpar os baldes
+                buckets.forEach(bucket => {
+                    const bucketContent = bucket.querySelector('.bucket-content');
+                    bucketContent.innerHTML = '';
+                });
+            }
+
+            // Função para criar um card de animal
+            function createAnimalCard(animal) {
+                const card = document.createElement('div');
+                card.className = 'draggable bg-white rounded-lg p-4 shadow-md cursor-grab flex flex-col items-center';
+                card.setAttribute('draggable', 'true');
+                card.setAttribute('data-id', animal.id);
+                card.setAttribute('data-category', animal.category);
+                
+                const emoji = document.createElement('div');
+                emoji.className = 'text-4xl mb-2';
+                emoji.textContent = animal.emoji;
+                
+                const name = document.createElement('div');
+                name.className = 'font-semibold text-center';
+                name.textContent = animal.name;
+                
+                card.appendChild(emoji);
+                card.appendChild(name);
+                
+                return card;
+            }
+
+            // Configurar eventos de drag and drop
+            function setupDragAndDrop() {
+                const draggables = document.querySelectorAll('.draggable');
+                
+                draggables.forEach(draggable => {
+                    draggable.addEventListener('dragstart', () => {
+                        draggable.classList.add('dragging');
+                    });
+                    
+                    draggable.addEventListener('dragend', () => {
+                        draggable.classList.remove('dragging');
+                    });
+                });
+                
+                buckets.forEach(bucket => {
+                    bucket.addEventListener('dragover', e => {
+                        e.preventDefault();
+                        bucket.classList.add('drag-over');
+                    });
+                    
+                    bucket.addEventListener('dragleave', () => {
+                        bucket.classList.remove('drag-over');
+                    });
+                    
+                    bucket.addEventListener('drop', e => {
+                        e.preventDefault();
+                        bucket.classList.remove('drag-over');
+                        
+                        const draggable = document.querySelector('.dragging');
+                        if (draggable) {
+                            const animalCategory = draggable.getAttribute('data-category');
+                            const bucketCategory = bucket.getAttribute('data-category');
+                            
+                            // Verificar se a classificação está correta
+                            const isCorrect = animalCategory === bucketCategory;
+                            
+                            // Adicionar o animal ao balde
+                            const bucketContent = bucket.querySelector('.bucket-content');
+                            const animalClone = draggable.cloneNode(true);
+                            animalClone.classList.remove('dragging');
+                            animalClone.setAttribute('draggable', 'false');
+                            
+                            // Adicionar classe de cor baseada na resposta
+                            if (isCorrect) {
+                                animalClone.classList.add('border-2', 'border-green-500');
+                                showFeedback('Correto! +10 pontos', 'text-green-500');
+                                score += 10;
+                                correctAnswers++;
+                                createConfetti(e.clientX, e.clientY);
+                            } else {
+                                animalClone.classList.add('border-2', 'border-red-500');
+                                showFeedback('Incorreto! Tente novamente', 'text-red-500');
+                                score = Math.max(0, score - 5);
+                            }
+                            
+                            bucketContent.appendChild(animalClone);
+                            
+                            // Remover o animal original
+                            draggable.remove();
+                            
+                            // Atualizar pontuação e progresso
+                            updateScore();
+                            updateProgressBar();
+                            
+                            // Verificar se o jogo acabou
+                            if (document.querySelectorAll('.draggable').length === 0) {
+                                setTimeout(() => {
+                                    showCompletionModal();
+                                }, 1000);
+                            }
+                        }
+                    });
+                });
+            }
+
+            // Função para mostrar feedback
+            function showFeedback(message, colorClass) {
+                feedbackText.textContent = message;
+                feedbackText.className = `text-lg font-bold ${colorClass}`;
+                feedbackElement.classList.add('show');
+                
+                setTimeout(() => {
+                    feedbackElement.classList.remove('show');
+                }, 2000);
+            }
+
+            // Função para criar efeito de confete
+            function createConfetti(x, y) {
+                const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff'];
+                
+                for (let i = 0; i < 30; i++) {
+                    const confetti = document.createElement('div');
+                    confetti.className = 'confetti';
+                    confetti.style.left = `${x}px`;
+                    confetti.style.top = `${y}px`;
+                    confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                    confetti.style.transform = `rotate(${Math.random() * 360}deg)`;
+                    
+                    document.body.appendChild(confetti);
+                    
+                    // Animar o confete
+                    confetti.animate([
+                        { transform: 'translate(0, 0) rotate(0deg)', opacity: 1 },
+                        { 
+                            transform: `translate(${(Math.random() - 0.5) * 200}px, ${-Math.random() * 200}px) rotate(${Math.random() * 360}deg)`, 
+                            opacity: 0 
+                        }
+                    ], {
+                        duration: 1000 + Math.random() * 1000,
+                        easing: 'cubic-bezier(0, .9, .57, 1)'
+                    });
+                    
+                    setTimeout(() => {
+                        confetti.remove();
+                    }, 2000);
+                }
+            }
+
+            // Função para atualizar a pontuação
+            function updateScore() {
+                scoreElement.textContent = score;
+            }
+
+            // Função para atualizar a barra de progresso
+            function updateProgressBar() {
+                const progress = (correctAnswers / totalAnimals) * 100;
+                progressBar.style.width = `${progress}%`;
+            }
+
+            // Função para mostrar o modal de conclusão
+            function showCompletionModal() {
+                finalScoreElement.textContent = score;
+                completionModal.classList.remove('hidden');
+            }
+
+            // Evento para reiniciar o jogo
+            restartButton.addEventListener('click', () => {
+                completionModal.classList.add('hidden');
+                currentAnimals = [...animals];
+                shuffleArray(currentAnimals);
+                initGame();
+            });
+
+            // Função para embaralhar um array
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+            }
+        });
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'940d568500676f83',t:'MTc0NzQyNDMzMy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
